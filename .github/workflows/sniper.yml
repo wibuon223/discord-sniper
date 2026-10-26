@@ -71,7 +71,7 @@ jobs:
             --minutes "${{ github.event.inputs.minutes || 20 }}" \
             --workers 24 \
             --proxy-file proxies.txt \
-            --keep-going --proxy-wait 45 --rotate-cooldown 20 \
+            --keep-going --proxy-wait 45 --rotate-cooldown 20 --dead-after 250 \
             --telegram --hits-json docs/hits.json
           echo "--- hits ---"
           python sniper.py hits | head -50 || true

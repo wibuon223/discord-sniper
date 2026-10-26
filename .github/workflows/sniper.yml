@@ -45,6 +45,17 @@ jobs:
           key: sniper-state-${{ github.run_id }}
           restore-keys: sniper-state-
 
+      - name: seed state (first run only)
+        run: |
+          if [ ! -f sniper.db ] && [ -f state/sniper.db ]; then
+            cp state/sniper.db sniper.db
+            cp state/proxies.txt proxies.txt 2>/dev/null || true
+            cp state/proxy_state.json proxy_state.json 2>/dev/null || true
+            echo "seeded from state/"
+          else
+            echo "cache hit — keeping cached state"
+          fi
+
       - name: harvest proxies
         run: |
           touch proxies.txt

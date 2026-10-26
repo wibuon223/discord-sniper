@@ -472,7 +472,11 @@ def check_name(name: str, proxy: Proxy | None):
             j = json.loads(txt)
         except Exception:
             return ERROR, txt
-        return (TAKEN if j.get("taken") else AVAILABLE), txt
+        # some public proxies answer 200 with their own JSON — only trust Discord's
+        # exact shape, otherwise a missing "taken" reads as available (false hit)
+        if not isinstance(j, dict) or not isinstance(j.get("taken"), bool):
+            return ERROR, "not-a-discord-response: " + txt
+        return (TAKEN if j["taken"] else AVAILABLE), txt
     if st == 429:
         try:
             ra = json.loads(txt).get("retry_after", 900)
@@ -949,12 +953,13 @@ def cmd_harvest(a, store):
                 alive.append(r)
     eprint(f"reachable {len(alive)}")
 
-    probe_name = "".join(random.choice(string.ascii_lowercase) for _ in range(11))
+    # honesty check: a proxy that claims "discord" is available is lying (or broken)
+    probe_name = "discord"
 
     def chk(u):
         try:
             st, _ = check_name(probe_name, Proxy(u))
-            return u if st in (TAKEN, AVAILABLE) else None
+            return u if st in (TAKEN, RATE_LIMITED) else None
         except Exception:
             return None
 
@@ -985,6 +990,10 @@ def cmd_proxies(a, store):
         try:
             st = api_ping(u)
             ok = st in (200, 204)
+            if ok and getattr(a, "deep", False):
+                # ping only proves TLS; a liar proxy still has to pass a known-taken name
+                st2 = check_name("discord", Proxy(u))[0]
+                ok = st2 in (TAKEN, RATE_LIMITED)  # "discord" available = liar
         except Exception as e:
             ok = False
         with lock:
@@ -1097,6 +1106,8 @@ def main():
     pr = sub.add_parser("proxies", help="validate proxies")
     pr.add_argument("--proxy", action="append"); pr.add_argument("--proxy-file")
     pr.add_argument("--proxy-url", action="append"); pr.add_argument("--out")
+    pr.add_argument("--deep", action="store_true",
+                    help="also require a known-taken name to come back taken")
     d = sub.add_parser("doctor", help="connectivity check")
     d.add_argument("--proxy", action="append"); d.add_argument("--proxy-file")
     d.add_argument("--proxy-url", action="append")

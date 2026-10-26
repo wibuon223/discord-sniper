@@ -1,0 +1,78 @@
+name: sniper
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "grind budget (minutes)"
+        default: "15"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: sniper
+  cancel-in-progress: false
+
+jobs:
+  grind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: deps
+        run: pip install --quiet httpx pysocks
+
+      # state = db (dupe + hits), proxy pool, park state. Cache is the whole memory.
+      - name: restore state
+        uses: actions/cache@v4
+        with:
+          path: |
+            sniper.db
+            sniper.db-wal
+            sniper.db-shm
+            proxies.txt
+            proxy_state.json
+          key: sniper-state-${{ github.run_id }}
+          restore-keys: sniper-state-
+
+      - name: harvest proxies
+        run: timeout 150 python sniper.py harvest --workers 160 || true
+
+      - name: grind
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python sniper.py grind \
+            --minutes "${{ github.event.inputs.minutes || 15 }}" \
+            --workers 24 \
+            --proxy-file proxies.txt \
+            --keep-going --proxy-wait 45 --rotate-cooldown 20 \
+            --telegram --hits-json docs/hits.json
+          echo "--- hits ---"
+          python sniper.py hits | head -50 || true
+
+      - name: upload pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: grind
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.dep.outputs.page_url }}
+    steps:
+      - id: dep
+        uses: actions/deploy-pages@v4

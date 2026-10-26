@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Discord Hits — live</title>
+<style>
+  :root{
+    --bg:#08090a; --panel:#101213; --line:#1e2224; --ink:#e8ecea; --dim:#7d8a86;
+    --mint:#5ef2b8; --mint-dim:#1d3a30;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;
+    padding:28px 20px 80px;max-width:1000px;margin:0 auto}
+  h1{font-size:17px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 4px}
+  .sub{color:var(--dim);font-size:12px;margin-bottom:22px}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--mint);
+    margin-right:7px;animation:p 2s infinite}
+  @keyframes p{50%{opacity:.35}}
+  .stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:12px 16px;min-width:120px}
+  .card b{display:block;font-size:22px;color:var(--mint);font-weight:600}
+  .card span{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.1em}
+  .bar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+  input{flex:1;min-width:180px;background:var(--panel);border:1px solid var(--line);
+    color:var(--ink);border-radius:8px;padding:9px 12px;font:inherit;outline:none}
+  input:focus{border-color:var(--mint-dim)}
+  button{background:var(--panel);border:1px solid var(--line);color:var(--dim);
+    border-radius:8px;padding:9px 12px;font:inherit;cursor:pointer}
+  button:hover{color:var(--ink);border-color:var(--mint-dim)}
+  button.on{color:var(--mint);border-color:var(--mint-dim);background:var(--mint-dim)}
+  table{width:100%;border-collapse:collapse}
+  th{text-align:left;color:var(--dim);font-size:11px;text-transform:uppercase;
+    letter-spacing:.1em;padding:8px 10px;border-bottom:1px solid var(--line)}
+  td{padding:9px 10px;border-bottom:1px solid #141718}
+  tr:hover td{background:#0d0f10}
+  .name{color:var(--mint);font-size:15px;cursor:pointer}
+  .name:active{opacity:.6}
+  .fam{color:var(--dim);font-size:12px}
+  .empty{color:var(--dim);padding:40px 10px;text-align:center}
+  .stamp{color:var(--dim);font-size:11px;margin-top:18px}
+  .copy{color:var(--mint);font-size:11px;margin-left:8px;opacity:0;transition:.15s}
+  tr:hover .copy{opacity:.8}
+</style>
+</head>
+<body>
+<h1><span class="dot"></span>Discord username hits</h1>
+<div class="sub">available usernames found by the sniper · auto-refresh 60s</div>
+
+<div class="stats">
+  <div class="card"><b id="total">—</b><span>total hits</span></div>
+  <div class="card"><b id="fams">—</b><span>families</span></div>
+  <div class="card"><b id="shortest">—</b><span>shortest</span></div>
+</div>
+
+<div class="bar">
+  <input id="q" placeholder="search username…" autocomplete="off">
+  <div id="chips" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+</div>
+
+<table>
+  <thead><tr><th>username</th><th>family</th><th>len</th><th>found</th></tr></thead>
+  <tbody id="rows"><tr><td colspan="4" class="empty">loading…</td></tr></tbody>
+</table>
+<div class="stamp" id="stamp"></div>
+
+<script>
+let DATA = {hits: [], by_family: {}, count: 0}, fam = null;
+
+const fmt = ts => ts ? new Date(ts*1000).toLocaleString() : '—';
+
+function render(){
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const rows = DATA.hits.filter(h =>
+    (!fam || h.family === fam) && (!q || h.name.includes(q)));
+  document.getElementById('total').textContent = DATA.count ?? rows.length;
+  document.getElementById('fams').textContent = Object.keys(DATA.by_family || {}).length;
+  const lens = DATA.hits.map(h => h.len);
+  document.getElementById('shortest').textContent = lens.length ? Math.min(...lens) : '—';
+
+  const chips = document.getElementById('chips');
+  const names = Object.keys(DATA.by_family || {});
+  chips.innerHTML = '';
+  names.forEach(f => {
+    const b = document.createElement('button');
+    b.textContent = `${f} ${DATA.by_family[f]}`;
+    if (f === fam) b.className = 'on';
+    b.onclick = () => { fam = (fam === f ? null : f); render(); };
+    chips.appendChild(b);
+  });
+
+  const body = document.getElementById('rows');
+  if (!rows.length){
+    body.innerHTML = '<tr><td colspan="4" class="empty">belum ada hit — proses masih jalan</td></tr>';
+  } else {
+    body.innerHTML = rows.map(h => `<tr>
+      <td><span class="name" data-n="${h.name}">${h.name}</span><span class="copy">copy</span></td>
+      <td class="fam">${h.family}</td><td class="fam">${h.len}</td>
+      <td class="fam">${fmt(h.found)}</td></tr>`).join('');
+    body.querySelectorAll('.name').forEach(el => el.onclick = () => {
+      navigator.clipboard?.writeText(el.dataset.n);
+      const tip = el.nextElementSibling;
+      tip.textContent = 'copied'; setTimeout(() => tip.textContent = 'copy', 900);
+    });
+  }
+  document.getElementById('stamp').textContent =
+    DATA.updated ? 'state updated ' + new Date(DATA.updated*1000).toLocaleString() : '';
+}
+
+async function load(){
+  try{
+    const r = await fetch('hits.json?ts=' + Date.now(), {cache:'no-store'});
+    if (r.ok) DATA = await r.json();
+  }catch(e){}
+  render();
+}
+document.getElementById('q').addEventListener('input', render);
+load(); setInterval(load, 60000);
+</script>
+</body>
+</html>

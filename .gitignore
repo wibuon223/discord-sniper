@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+sniper.db
+sniper.db-wal
+sniper.db-shm
+proxy_state.json
+hits.txt
+proxies.txt
+docs/hits.json

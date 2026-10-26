@@ -578,7 +578,16 @@ class Runner:
                     with self.lock:
                         self.n["dead_proxy"] += 1
                     continue
+                if st == ERROR:
+                    p.fails += 1
+                    if p.fails >= 3:
+                        self.pool.kill(p, f"3x error: {d}")
+                        with self.lock:
+                            self.n["dead_proxy"] += 1
+                        continue
                 break
+        if st == RATE_LIMITED:
+            return  # attempt, not a result: leave it unchecked for the next run
         self.record(name, st, d)
 
     def record(self, name, st, d):
@@ -959,7 +968,7 @@ def cmd_harvest(a, store):
     def chk(u):
         try:
             st, _ = check_name(probe_name, Proxy(u))
-            return u if st in (TAKEN, RATE_LIMITED) else None
+            return u if st == TAKEN else None
         except Exception:
             return None
 

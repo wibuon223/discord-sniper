@@ -2,12 +2,12 @@ name: sniper
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "7 * * * *"   # hourly: GitHub throttles */30 on free runners
   workflow_dispatch:
     inputs:
       minutes:
         description: "grind budget (minutes)"
-        default: "15"
+        default: "20"
 
 permissions:
   contents: read
@@ -68,7 +68,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           python sniper.py grind \
-            --minutes "${{ github.event.inputs.minutes || 15 }}" \
+            --minutes "${{ github.event.inputs.minutes || 20 }}" \
             --workers 24 \
             --proxy-file proxies.txt \
             --keep-going --proxy-wait 45 --rotate-cooldown 20 \

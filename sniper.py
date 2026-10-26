@@ -350,8 +350,12 @@ def load_proxies(args) -> list[str]:
     if args.proxy:
         urls += args.proxy
     if args.proxy_file:
-        with open(os.path.expanduser(args.proxy_file)) as f:
-            urls += [l.strip() for l in f if l.strip() and not l.startswith("#")]
+        path = os.path.expanduser(args.proxy_file)
+        if os.path.exists(path):
+            with open(path) as f:
+                urls += [l.strip() for l in f if l.strip() and not l.startswith("#")]
+        else:
+            eprint(f"proxy-file {path} not found — falling back to direct")
     if args.proxy_url:
         for u in args.proxy_url:
             try:

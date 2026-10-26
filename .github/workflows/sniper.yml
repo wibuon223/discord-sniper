@@ -46,7 +46,10 @@ jobs:
           restore-keys: sniper-state-
 
       - name: harvest proxies
-        run: timeout 150 python sniper.py harvest --workers 160 || true
+        run: |
+          touch proxies.txt
+          timeout 240 python sniper.py harvest --workers 160 --max-candidates 1200 || true
+          wc -l proxies.txt || true
 
       - name: grind
         env:
